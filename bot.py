@@ -294,7 +294,6 @@ class WerjoBot(commands.Bot):
         await ctx.voice_client.disconnect()
 
     @commands.command(name='morning')
-    @commands.command(name='morning')
     async def morning_command(self, ctx):
         """Send morning message manually"""
         embed = discord.Embed(
