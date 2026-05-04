@@ -10,9 +10,9 @@ from database import ServerDatabase
 
 # إعداد البوت مع الـ Intents
 intents = discord.Intents.default()
-intents.message_content = True
-intents.guilds = True
-intents.members = True
+# تعطيل الـ privileged intents مؤقتاً
+intents.message_content = False
+intents.members = False
 
 class WerjoBot(commands.Bot):
     def __init__(self):
