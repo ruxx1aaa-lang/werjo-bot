@@ -140,5 +140,5 @@ discord-love-bot/
 
 ---
 
-**مع الحب ❤️**  
+**Werjo Bot**  
 *Werjo Bot - لنشر السعادة في كل مكان*

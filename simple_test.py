@@ -73,7 +73,7 @@ async def random_quotes_task():
                 description=f"💭 **مقولة اليوم:**\n{quote}",
                 color=0x00BFFF
             )
-            embed.set_footer(text="مع الحب من Werjo Bot ❤️")
+            embed.set_footer(text="Werjo Bot")
             
             await target_channel.send(embed=embed)
             print(f"✅ تم إرسال المقولة إلى {target_channel.name}")
@@ -107,7 +107,7 @@ async def random_quotes_task():
                     description=f"💭 **مقولة اليوم:**\n{quote}",
                     color=0x00BFFF
                 )
-                embed.set_footer(text="مع الحب من Werjo Bot ❤️")
+                embed.set_footer(text="Werjo Bot")
                 
                 await channel.send(embed=embed)
                 print(f"✅ تم إرسال المقولة إلى {channel.name} في {guild.name}")
@@ -179,7 +179,7 @@ async def werjo_command(ctx):
         inline=False
     )
         
-    embed.set_footer(text="مع الحب من Werjo Bot ❤️")
+    embed.set_footer(text="Werjo Bot")
     await ctx.send(embed=embed)
 
 @bot.command(name='morning')

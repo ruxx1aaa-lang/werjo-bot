@@ -154,4 +154,4 @@
 
 ---
 
-*مع الحب من Werjo Bot ❤️*
+*Werjo Bot*

@@ -357,7 +357,7 @@ class WerjoBot(commands.Bot):
                 inline=True
             )
             
-        embed.set_footer(text="مع الحب من Werjo Bot ❤️")
+        embed.set_footer(text="Werjo Bot")
         await ctx.send(embed=embed)
 
     @commands.command(name='test')
