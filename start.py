@@ -8,7 +8,6 @@ import os
 import sys
 import asyncio
 import logging
-from bot import WerjoBot
 
 # إعداد التسجيل
 logging.basicConfig(
@@ -33,11 +32,14 @@ def main():
     logger.info("✅ التوكن موجود")
     logger.info("🚀 جاري تشغيل البوت...")
     
-    # إنشاء البوت
-    bot = WerjoBot()
-    
+    # استخدام البوت البسيط للاختبار
     try:
-        # تشغيل البوت
+        from simple_test import bot
+        bot.run(discord_token)
+    except ImportError:
+        # إذا لم يوجد الملف البسيط، استخدم البوت الأساسي
+        from bot import WerjoBot
+        bot = WerjoBot()
         bot.run(discord_token)
     except KeyboardInterrupt:
         logger.info("⏹️ تم إيقاف البوت")
