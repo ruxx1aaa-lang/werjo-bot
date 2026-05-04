@@ -20,7 +20,7 @@ class WerjoBot(commands.Bot):
             command_prefix='!',
             intents=intents,
             help_command=None,
-            activity=discord.Activity(type=discord.ActivityType.watching, name="💕 Werjo Bot - نشر المحبة")
+            activity=discord.Activity(type=discord.ActivityType.watching, name="💕 Werjo Bot")
         )
         self.db = ServerDatabase()  # قاعدة البيانات
         
@@ -51,7 +51,7 @@ class WerjoBot(commands.Bot):
             )
             embed.add_field(
                 name="⚙️ إعداد القناة",
-                value="استخدم `!تحديد_قناة` لتحديد قناة الرسائل التلقائية",
+                value="استخدم `!setchannel` لتحديد قناة الرسائل التلقائية",
                 inline=False
             )
             embed.set_footer(text="مع الحب من Werjo Bot ❤️")
@@ -90,9 +90,9 @@ class WerjoBot(commands.Bot):
                     try:
                         await channel.send(embed=embed)
                     except discord.Forbidden:
-                        print(f"لا يمكن الإرسال في القناة {channel_id}")
+                        print(f"Cannot send to channel {channel_id}")
                     except Exception as e:
-                        print(f"خطأ في إرسال رسالة الصباح: {e}")
+                        print(f"Error sending morning message: {e}")
             
         # رسالة المساء
         elif current_time == EVENING_TIME:
@@ -114,9 +114,9 @@ class WerjoBot(commands.Bot):
                     try:
                         await channel.send(embed=embed)
                     except discord.Forbidden:
-                        print(f"لا يمكن الإرسال في القناة {channel_id}")
+                        print(f"Cannot send to channel {channel_id}")
                     except Exception as e:
-                        print(f"خطأ في إرسال رسالة المساء: {e}")
+                        print(f"Error sending evening message: {e}")
 
     @tasks.loop(hours=2)
     async def random_love_messages(self):
@@ -141,18 +141,18 @@ class WerjoBot(commands.Bot):
                     try:
                         await channel.send(embed=embed)
                     except discord.Forbidden:
-                        print(f"لا يمكن الإرسال في القناة {channel_id}")
+                        print(f"Cannot send to channel {channel_id}")
                     except Exception as e:
-                        print(f"خطأ في إرسال رسالة المحبة: {e}")
+                        print(f"Error sending love message: {e}")
 
-    @commands.command(name='تحديد_قناة')
+    @commands.command(name='setchannel')
     @commands.has_permissions(manage_channels=True)
     async def set_channel_command(self, ctx, channel: discord.TextChannel = None):
-        """تحديد قناة الرسائل التلقائية (للمشرفين فقط)"""
+        """Set automatic messages channel (Admins only)"""
         if channel is None:
             channel = ctx.channel
         
-        # حفظ القناة في قاعدة البيانات
+        # Save channel in database
         self.db.set_channel(ctx.guild.id, channel.id)
         
         embed = discord.Embed(
@@ -168,10 +168,10 @@ class WerjoBot(commands.Bot):
         embed.set_footer(text="يمكن للمشرفين فقط تغيير هذا الإعداد")
         await ctx.send(embed=embed)
 
-    @commands.command(name='إلغاء_قناة')
+    @commands.command(name='removechannel')
     @commands.has_permissions(manage_channels=True)
     async def remove_channel_command(self, ctx):
-        """إلغاء قناة الرسائل التلقائية (للمشرفين فقط)"""
+        """Remove automatic messages channel (Admins only)"""
         current_channel = self.db.get_channel(ctx.guild.id)
         
         if current_channel is None:
@@ -183,7 +183,7 @@ class WerjoBot(commands.Bot):
             await ctx.send(embed=embed)
             return
         
-        # إزالة القناة من قاعدة البيانات
+        # Remove channel from database
         self.db.remove_channel(ctx.guild.id)
         
         embed = discord.Embed(
@@ -193,14 +193,14 @@ class WerjoBot(commands.Bot):
         )
         embed.add_field(
             name="💡 لإعادة التفعيل:",
-            value="استخدم `!تحديد_قناة` لتحديد قناة جديدة",
+            value="استخدم `!setchannel` لتحديد قناة جديدة",
             inline=False
         )
         await ctx.send(embed=embed)
 
-    @commands.command(name='معلومات_قناة')
+    @commands.command(name='channelinfo')
     async def channel_info_command(self, ctx):
-        """عرض معلومات قناة الرسائل التلقائية"""
+        """Show automatic messages channel information"""
         current_channel_id = self.db.get_channel(ctx.guild.id)
         
         embed = discord.Embed(
@@ -235,16 +235,68 @@ class WerjoBot(commands.Bot):
         else:
             embed.add_field(
                 name="❌ لا توجد قناة محددة",
-                value="استخدم `!تحديد_قناة` لتحديد قناة الرسائل",
+                value="استخدم `!setchannel` لتحديد قناة الرسائل",
                 inline=False
             )
         
         embed.set_footer(text="يمكن للمشرفين تغيير هذه الإعدادات")
         await ctx.send(embed=embed)
 
-    @commands.command(name='صباح')
+    @commands.command(name='call')
+    async def join_voice_command(self, ctx):
+        """Join voice channel"""
+        if ctx.author.voice is None:
+            embed = discord.Embed(
+                title="❌ لست في قناة صوتية",
+                description="يجب أن تكون في قناة صوتية أولاً!",
+                color=0xFF0000
+            )
+            await ctx.send(embed=embed)
+            return
+        
+        channel = ctx.author.voice.channel
+        
+        if ctx.voice_client is not None:
+            embed = discord.Embed(
+                title="🔄 الانتقال إلى قناتك",
+                description=f"جاري الانتقال إلى {channel.mention}",
+                color=COLORS['info']
+            )
+            await ctx.send(embed=embed)
+            await ctx.voice_client.move_to(channel)
+        else:
+            embed = discord.Embed(
+                title="🎵 الانضمام للقناة الصوتية",
+                description=f"تم الانضمام إلى {channel.mention}",
+                color=COLORS['success']
+            )
+            await ctx.send(embed=embed)
+            voice_client = await channel.connect(self_deaf=True)
+
+    @commands.command(name='leave')
+    async def leave_voice_command(self, ctx):
+        """Leave voice channel"""
+        if ctx.voice_client is None:
+            embed = discord.Embed(
+                title="❌ لست في قناة صوتية",
+                description="لست متصل بأي قناة صوتية!",
+                color=0xFF0000
+            )
+            await ctx.send(embed=embed)
+            return
+        
+        embed = discord.Embed(
+            title="👋 مغادرة القناة الصوتية",
+            description="تم قطع الاتصال من القناة الصوتية",
+            color=COLORS['info']
+        )
+        await ctx.send(embed=embed)
+        await ctx.voice_client.disconnect()
+
+    @commands.command(name='morning')
+    @commands.command(name='morning')
     async def morning_command(self, ctx):
-        """إرسال رسالة صباحية يدوياً"""
+        """Send morning message manually"""
         embed = discord.Embed(
             title="🌅 صباح الخير!",
             description=get_random_morning_message(),
@@ -252,9 +304,9 @@ class WerjoBot(commands.Bot):
         )
         await ctx.send(embed=embed)
 
-    @commands.command(name='مساء')
+    @commands.command(name='evening')
     async def evening_command(self, ctx):
-        """إرسال رسالة مسائية يدوياً"""
+        """Send evening message manually"""
         embed = discord.Embed(
             title="🌙 مساء الخير!",
             description=get_random_evening_message(),
@@ -262,18 +314,18 @@ class WerjoBot(commands.Bot):
         )
         await ctx.send(embed=embed)
 
-    @commands.command(name='حب')
+    @commands.command(name='love')
     async def love_command(self, ctx):
-        """إرسال رسالة محبة"""
+        """Send love message"""
         embed = discord.Embed(
             description=get_random_love_message(),
             color=COLORS['love']
         )
         await ctx.send(embed=embed)
 
-    @commands.command(name='تشجيع')
+    @commands.command(name='encourage')
     async def encourage_command(self, ctx):
-        """إرسال رسالة تشجيع"""
+        """Send encouragement message"""
         embed = discord.Embed(
             title="💪 رسالة تشجيع",
             description=get_random_encouragement_message(),
@@ -281,24 +333,26 @@ class WerjoBot(commands.Bot):
         )
         await ctx.send(embed=embed)
 
-    @commands.command(name='مساعدة')
+    @commands.command(name='werjo')
     async def help_command(self, ctx):
-        """عرض قائمة الأوامر"""
+        """Show commands list"""
         embed = discord.Embed(
-            title="📋 قائمة الأوامر",
+            title="📋 قائمة أوامر Werjo Bot",
             description="إليكم جميع الأوامر المتاحة:",
             color=COLORS['info']
         )
         
         commands_list = [
-            ("!صباح", "رسالة صباحية 🌅"),
-            ("!مساء", "رسالة مسائية 🌙"),
-            ("!حب", "رسالة محبة 💕"),
-            ("!تشجيع", "رسالة تشجيع 💪"),
-            ("!تحديد_قناة", "تحديد قناة الرسائل (مشرفين) ⚙️"),
-            ("!إلغاء_قناة", "إلغاء قناة الرسائل (مشرفين) ❌"),
-            ("!معلومات_قناة", "معلومات القناة الحالية 📋"),
-            ("!مساعدة", "عرض هذه القائمة 📋")
+            ("!morning", "رسالة صباحية 🌅"),
+            ("!evening", "رسالة مسائية 🌙"),
+            ("!love", "رسالة محبة 💕"),
+            ("!encourage", "رسالة تشجيع 💪"),
+            ("!call", "الانضمام للقناة الصوتية 🎵"),
+            ("!leave", "مغادرة القناة الصوتية 👋"),
+            ("!setchannel", "تحديد قناة الرسائل (مشرفين) ⚙️"),
+            ("!removechannel", "إلغاء قناة الرسائل (مشرفين) ❌"),
+            ("!channelinfo", "معلومات القناة الحالية 📋"),
+            ("!werjo", "عرض هذه القائمة 📋")
         ]
         
         for command, description in commands_list:
@@ -311,10 +365,10 @@ class WerjoBot(commands.Bot):
         embed.set_footer(text="مع الحب من Werjo Bot ❤️")
         await ctx.send(embed=embed)
 
-    @commands.command(name='احصائيات')
+    @commands.command(name='stats')
     @commands.has_permissions(administrator=True)
     async def stats_command(self, ctx):
-        """عرض إحصائيات البوت (للمشرفين فقط)"""
+        """عرض إحصائيات السيرفر (للمشرفين فقط)"""
         guild = ctx.guild
         embed = discord.Embed(
             title="📊 إحصائيات السيرفر",
