@@ -36,26 +36,21 @@ class WerjoBot(commands.Bot):
         print(f'✅ {self.user} متصل ومستعد لنشر المحبة!')
         print(f'🌐 متصل بـ {len(self.guilds)} سيرفر')
         
-        # إرسال رسالة ترحيب
-        channel = self.get_channel(GENERAL_CHANNEL_ID)
-        if channel:
-            embed = discord.Embed(
-                title="💖 Werjo Bot متصل!",
-                description="مرحباً بكم! أنا Werjo Bot هنا لنشر المحبة والإيجابية 🌟",
-                color=COLORS['love']
-            )
-            embed.add_field(
-                name="🎯 مهمتي",
-                value="• رسائل صباحية ومسائية يومية\n• رسائل محبة عشوائية\n• نشر الإيجابية والفرح",
-                inline=False
-            )
-            embed.add_field(
-                name="⚙️ إعداد القناة",
-                value="استخدم `!setchannel` لتحديد قناة الرسائل التلقائية",
-                inline=False
-            )
-            embed.set_footer(text="مع الحب من Werjo Bot ❤️")
-            await channel.send(embed=embed)
+        # طباعة معلومات السيرفرات
+        for guild in self.guilds:
+            print(f'📋 السيرفر: {guild.name} (ID: {guild.id})')
+
+    async def on_message(self, message):
+        """معالجة الرسائل الواردة"""
+        # تجاهل رسائل البوت نفسه
+        if message.author == self.user:
+            return
+        
+        # طباعة الرسائل للتشخيص
+        print(f'📨 رسالة من {message.author}: {message.content}')
+        
+        # معالجة الأوامر
+        await self.process_commands(message)
 
     @tasks.loop(minutes=1)
     async def daily_messages(self):
@@ -335,6 +330,7 @@ class WerjoBot(commands.Bot):
     @commands.command(name='werjo')
     async def help_command(self, ctx):
         """Show commands list"""
+        print(f'🔧 تم استدعاء أمر werjo من {ctx.author}')
         embed = discord.Embed(
             title="📋 قائمة أوامر Werjo Bot",
             description="إليكم جميع الأوامر المتاحة:",
@@ -363,6 +359,12 @@ class WerjoBot(commands.Bot):
             
         embed.set_footer(text="مع الحب من Werjo Bot ❤️")
         await ctx.send(embed=embed)
+
+    @commands.command(name='test')
+    async def test_command(self, ctx):
+        """Test command"""
+        print(f'🧪 تم استدعاء أمر test من {ctx.author}')
+        await ctx.send("✅ البوت يعمل بشكل صحيح!")
 
     @commands.command(name='stats')
     @commands.has_permissions(administrator=True)
