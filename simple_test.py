@@ -203,18 +203,42 @@ async def on_message(message):
             if not message.channel.permissions_for(message.guild.me).add_reactions:
                 print(f'❌ لا توجد صلاحية add_reactions في القناة {message.channel.name}')
             else:
-                # تحليل المشاعر
-                emotion = analyze_emotion(message.content)
-                print(f'🎭 المشاعر المكتشفة: {emotion} للرسالة: {message.content[:30]}')
+                # تحليل جميع المشاعر في النص (multi emotions)
+                text_lower = message.content.lower()
+                detected_emotions = []
                 
-                # اختيار إيموجي عشوائي من المشاعر المكتشفة
-                if emotion in EMOTION_REACTIONS:
-                    emoji = random.choice(EMOTION_REACTIONS[emotion])
-                    print(f'🎯 محاولة إضافة الإيموجي: {emoji}')
-                    await message.add_reaction(emoji)
-                    print(f'✅ تم إضافة رد الفعل: {emoji}')
+                # البحث عن جميع المشاعر الموجودة في النص
+                for emotion, keywords in EMOTION_KEYWORDS.items():
+                    for keyword in keywords:
+                        if keyword in text_lower:
+                            if emotion not in detected_emotions:
+                                detected_emotions.append(emotion)
+                            break
+                
+                # إذا تم اكتشاف مشاعر، أضف ردود فعل متعددة
+                if detected_emotions:
+                    print(f'🎭 المشاعر المكتشفة: {", ".join(detected_emotions)}')
+                    
+                    # إضافة ردود فعل لكل مشاعر مكتشفة (حد أقصى 3 ردود)
+                    added_reactions = []
+                    for emotion in detected_emotions[:3]:  # حد أقصى 3 ردود فعل
+                        if emotion in EMOTION_REACTIONS:
+                            emoji = random.choice(EMOTION_REACTIONS[emotion])
+                            # تجنب تكرار نفس الإيموجي
+                            if emoji not in added_reactions:
+                                try:
+                                    await message.add_reaction(emoji)
+                                    added_reactions.append(emoji)
+                                    print(f'✅ تم إضافة رد الفعل: {emoji}')
+                                    await asyncio.sleep(0.5)  # تأخير بسيط بين كل إيموجي
+                                except Exception as e:
+                                    print(f'⚠️ خطأ في إضافة {emoji}: {e}')
+                    
+                    if added_reactions:
+                        print(f'✅ تم إضافة {len(added_reactions)} ردود فعل: {" ".join(added_reactions)}')
                 else:
-                    print(f'⚠️ لم يتم العثور على ردود للمشاعر: {emotion}')
+                    print(f'⏭️ لم يتم اكتشاف مشاعر محددة - تم تجاهل الرسالة')
+                    
         except discord.Forbidden as e:
             print(f'❌ لا يمكن إضافة رد فعل - لا توجد صلاحيات: {e}')
         except discord.HTTPException as e:
@@ -223,8 +247,6 @@ async def on_message(message):
             print(f'❌ خطأ غير متوقع في إضافة رد الفعل: {type(e).__name__}: {e}')
             import traceback
             traceback.print_exc()
-    elif AUTO_REACTIONS_ENABLED:
-        print(f'⚠️ رسالة فارغة أو بدون محتوى')
     
     # معالجة الأوامر
     await bot.process_commands(message)
@@ -385,20 +407,28 @@ async def startreactions_command(ctx):
     
     embed = discord.Embed(
         title="✅ تم تشغيل الردود التلقائية!",
-        description="سيقوم البوت الآن بإضافة ردود فعل تلقائية على الرسائل حسب المشاعر المكتشفة:",
+        description="سيقوم البوت الآن بإضافة ردود فعل **متعددة** على الرسائل التي تحتوي على كلمات مفتاحية محددة:",
         color=0x00FF00
     )
     
-    embed.add_field(name="😊 سعادة", value="رسائل إيجابية وسعيدة", inline=True)
-    embed.add_field(name="😢 حزن", value="رسائل حزينة", inline=True)
-    embed.add_field(name="❤️ حب", value="رسائل رومانسية", inline=True)
-    embed.add_field(name="😂 ضحك", value="رسائل مضحكة", inline=True)
-    embed.add_field(name="🎉 احتفال", value="رسائل احتفالية", inline=True)
-    embed.add_field(name="💪 تشجيع", value="رسائل تحفيزية", inline=True)
+    embed.add_field(name="😊 سعادة", value="سعيد، فرحان، رائع، جميل", inline=True)
+    embed.add_field(name="😢 حزن", value="حزين، زعلان، تعبان", inline=True)
+    embed.add_field(name="❤️ حب", value="حب، قلبي، حبيب", inline=True)
+    embed.add_field(name="😂 ضحك", value="هههه، ضحك، مضحك", inline=True)
+    embed.add_field(name="🎉 احتفال", value="مبروك، احتفال، نجاح", inline=True)
+    embed.add_field(name="💪 تشجيع", value="قوة، تقدر، استمر", inline=True)
     
     embed.add_field(
-        name="💡 ملاحظة",
-        value="جرب كتابة رسالة الآن وشوف البوت هيضيف إيموجي مناسب!",
+        name="💡 ملاحظات مهمة",
+        value="• البوت يضيف ردود **فقط** على الرسائل التي تحتوي على الكلمات المفتاحية\n"
+              "• يمكن إضافة **حتى 3 ردود فعل** على نفس الرسالة\n"
+              "• الرسائل العادية بدون كلمات مفتاحية **لن تحصل على ردود**",
+        inline=False
+    )
+    
+    embed.add_field(
+        name="🧪 اختبر الآن",
+        value="جرب كتابة: `أنا سعيد ومبسوط` أو `حزين شوية`",
         inline=False
     )
     
@@ -472,8 +502,16 @@ async def testreaction_command(ctx, *, text: str = None):
         await ctx.send("❌ **يرجى كتابة نص للاختبار!**\nمثال: `!testreaction أنا سعيد جداً اليوم`")
         return
     
-    # تحليل المشاعر
-    emotion = analyze_emotion(text)
+    # تحليل جميع المشاعر في النص
+    text_lower = text.lower()
+    detected_emotions = []
+    
+    for emotion, keywords in EMOTION_KEYWORDS.items():
+        for keyword in keywords:
+            if keyword in text_lower:
+                if emotion not in detected_emotions:
+                    detected_emotions.append(emotion)
+                break
     
     embed = discord.Embed(
         title="🧪 نتيجة تحليل المشاعر",
@@ -481,41 +519,57 @@ async def testreaction_command(ctx, *, text: str = None):
         color=0x00BFFF
     )
     
-    embed.add_field(
-        name="المشاعر المكتشفة",
-        value=f"**{emotion}**",
-        inline=False
-    )
-    
-    if emotion in EMOTION_REACTIONS:
-        reactions = " ".join(EMOTION_REACTIONS[emotion])
+    if detected_emotions:
+        emotions_text = ", ".join([f"**{e}**" for e in detected_emotions])
         embed.add_field(
-            name="الردود المحتملة",
-            value=reactions,
+            name="المشاعر المكتشفة",
+            value=emotions_text,
             inline=False
         )
         
-        # محاولة إضافة رد فعل على رسالة الأمر نفسها
-        try:
-            emoji = random.choice(EMOTION_REACTIONS[emotion])
-            await ctx.message.add_reaction(emoji)
+        # عرض الردود المحتملة لكل مشاعر
+        all_reactions = []
+        for emotion in detected_emotions[:3]:
+            if emotion in EMOTION_REACTIONS:
+                emoji = random.choice(EMOTION_REACTIONS[emotion])
+                all_reactions.append(emoji)
+        
+        if all_reactions:
             embed.add_field(
-                name="✅ اختبار الإضافة",
-                value=f"تم إضافة {emoji} على رسالتك كاختبار!",
+                name="الردود المحتملة",
+                value=" ".join(all_reactions),
                 inline=False
             )
-        except discord.Forbidden:
-            embed.add_field(
-                name="❌ خطأ في الصلاحيات",
-                value="البوت لا يملك صلاحية إضافة ردود الفعل!",
-                inline=False
-            )
-        except Exception as e:
-            embed.add_field(
-                name="❌ خطأ",
-                value=f"حدث خطأ: {str(e)}",
-                inline=False
-            )
+            
+            # محاولة إضافة ردود فعل على رسالة الأمر نفسها
+            try:
+                for emoji in all_reactions:
+                    await ctx.message.add_reaction(emoji)
+                    await asyncio.sleep(0.3)
+                
+                embed.add_field(
+                    name="✅ اختبار الإضافة",
+                    value=f"تم إضافة {len(all_reactions)} ردود فعل على رسالتك!",
+                    inline=False
+                )
+            except discord.Forbidden:
+                embed.add_field(
+                    name="❌ خطأ في الصلاحيات",
+                    value="البوت لا يملك صلاحية إضافة ردود الفعل!",
+                    inline=False
+                )
+            except Exception as e:
+                embed.add_field(
+                    name="❌ خطأ",
+                    value=f"حدث خطأ: {str(e)}",
+                    inline=False
+                )
+    else:
+        embed.add_field(
+            name="⚠️ لم يتم اكتشاف مشاعر",
+            value="النص لا يحتوي على كلمات مفتاحية معروفة",
+            inline=False
+        )
     
     embed.set_footer(text="Werjo Bot")
     await ctx.send(embed=embed)
