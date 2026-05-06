@@ -190,30 +190,41 @@ async def random_quotes_task():
 
 @bot.event
 async def on_message(message):
-    print(f'📨 رسالة: {message.content} من {message.author}')
-    
     # تجاهل رسائل البوت نفسه
     if message.author == bot.user:
         return
     
+    print(f'📨 رسالة من {message.author}: {message.content[:50]}...')
+    
     # إضافة ردود فعل تلقائية إذا كانت مفعلة
-    if AUTO_REACTIONS_ENABLED and message.content:
+    if AUTO_REACTIONS_ENABLED and message.content and len(message.content.strip()) > 0:
         try:
-            # تحليل المشاعر
-            emotion = analyze_emotion(message.content)
-            print(f'🎭 المشاعر المكتشفة: {emotion}')
-            
-            # اختيار إيموجي عشوائي من المشاعر المكتشفة
-            if emotion in EMOTION_REACTIONS:
-                emoji = random.choice(EMOTION_REACTIONS[emotion])
-                await message.add_reaction(emoji)
-                print(f'✅ تم إضافة رد الفعل: {emoji}')
-        except discord.Forbidden:
-            print(f'❌ لا يمكن إضافة رد فعل - لا توجد صلاحيات')
+            # التحقق من صلاحيات البوت
+            if not message.channel.permissions_for(message.guild.me).add_reactions:
+                print(f'❌ لا توجد صلاحية add_reactions في القناة {message.channel.name}')
+            else:
+                # تحليل المشاعر
+                emotion = analyze_emotion(message.content)
+                print(f'🎭 المشاعر المكتشفة: {emotion} للرسالة: {message.content[:30]}')
+                
+                # اختيار إيموجي عشوائي من المشاعر المكتشفة
+                if emotion in EMOTION_REACTIONS:
+                    emoji = random.choice(EMOTION_REACTIONS[emotion])
+                    print(f'🎯 محاولة إضافة الإيموجي: {emoji}')
+                    await message.add_reaction(emoji)
+                    print(f'✅ تم إضافة رد الفعل: {emoji}')
+                else:
+                    print(f'⚠️ لم يتم العثور على ردود للمشاعر: {emotion}')
+        except discord.Forbidden as e:
+            print(f'❌ لا يمكن إضافة رد فعل - لا توجد صلاحيات: {e}')
         except discord.HTTPException as e:
-            print(f'❌ خطأ في إضافة رد الفعل: {e}')
+            print(f'❌ خطأ HTTP في إضافة رد الفعل: {e}')
         except Exception as e:
-            print(f'❌ خطأ غير متوقع: {e}')
+            print(f'❌ خطأ غير متوقع في إضافة رد الفعل: {type(e).__name__}: {e}')
+            import traceback
+            traceback.print_exc()
+    elif AUTO_REACTIONS_ENABLED:
+        print(f'⚠️ رسالة فارغة أو بدون محتوى')
     
     # معالجة الأوامر
     await bot.process_commands(message)
@@ -264,6 +275,7 @@ async def werjo_command(ctx):
               "**!stopreactions** - إيقاف الردود التلقائية ⏸️\n"
               "**!reactionsstatus** - حالة الردود التلقائية 📊\n"
               "**!testreaction** - اختبار تحليل المشاعر 🧪\n"
+              "**!checkreactions** - فحص صلاحيات الردود 🔍\n"
               "**!debug** - معلومات التشخيص 🔧",
         inline=False
     )
@@ -359,6 +371,12 @@ async def startreactions_command(ctx):
         await ctx.send("❌ **خطأ في الصلاحيات**\nتحتاج إلى صلاحية إدارة القنوات لاستخدام هذا الأمر!")
         return
     
+    # التحقق من صلاحيات البوت
+    bot_permissions = ctx.channel.permissions_for(ctx.guild.me)
+    if not bot_permissions.add_reactions:
+        await ctx.send("❌ **البوت لا يملك صلاحية إضافة ردود الفعل!**\nيرجى منح البوت صلاحية `Add Reactions` في إعدادات السيرفر.")
+        return
+    
     if AUTO_REACTIONS_ENABLED:
         await ctx.send("⚠️ **الردود التلقائية مفعلة بالفعل!**")
         return
@@ -377,6 +395,12 @@ async def startreactions_command(ctx):
     embed.add_field(name="😂 ضحك", value="رسائل مضحكة", inline=True)
     embed.add_field(name="🎉 احتفال", value="رسائل احتفالية", inline=True)
     embed.add_field(name="💪 تشجيع", value="رسائل تحفيزية", inline=True)
+    
+    embed.add_field(
+        name="💡 ملاحظة",
+        value="جرب كتابة رسالة الآن وشوف البوت هيضيف إيموجي مناسب!",
+        inline=False
+    )
     
     embed.set_footer(text="استخدم !stopreactions لإيقاف الردود التلقائية")
     
@@ -468,6 +492,84 @@ async def testreaction_command(ctx, *, text: str = None):
         embed.add_field(
             name="الردود المحتملة",
             value=reactions,
+            inline=False
+        )
+        
+        # محاولة إضافة رد فعل على رسالة الأمر نفسها
+        try:
+            emoji = random.choice(EMOTION_REACTIONS[emotion])
+            await ctx.message.add_reaction(emoji)
+            embed.add_field(
+                name="✅ اختبار الإضافة",
+                value=f"تم إضافة {emoji} على رسالتك كاختبار!",
+                inline=False
+            )
+        except discord.Forbidden:
+            embed.add_field(
+                name="❌ خطأ في الصلاحيات",
+                value="البوت لا يملك صلاحية إضافة ردود الفعل!",
+                inline=False
+            )
+        except Exception as e:
+            embed.add_field(
+                name="❌ خطأ",
+                value=f"حدث خطأ: {str(e)}",
+                inline=False
+            )
+    
+    embed.set_footer(text="Werjo Bot")
+    await ctx.send(embed=embed)
+
+@bot.command(name='checkreactions')
+async def checkreactions_command(ctx):
+    """فحص صلاحيات الردود التلقائية"""
+    print(f'🔍 تم استدعاء أمر checkreactions من {ctx.author}!')
+    
+    embed = discord.Embed(
+        title="🔍 فحص صلاحيات الردود التلقائية",
+        color=0x00BFFF
+    )
+    
+    # فحص صلاحيات البوت
+    bot_permissions = ctx.channel.permissions_for(ctx.guild.me)
+    
+    permissions_status = []
+    permissions_status.append(f"إضافة ردود الفعل: {'✅' if bot_permissions.add_reactions else '❌'}")
+    permissions_status.append(f"قراءة الرسائل: {'✅' if bot_permissions.read_messages else '❌'}")
+    permissions_status.append(f"قراءة تاريخ الرسائل: {'✅' if bot_permissions.read_message_history else '❌'}")
+    
+    embed.add_field(
+        name="صلاحيات البوت",
+        value="\n".join(permissions_status),
+        inline=False
+    )
+    
+    # حالة الردود التلقائية
+    status = "🟢 مفعلة" if AUTO_REACTIONS_ENABLED else "🔴 متوقفة"
+    embed.add_field(
+        name="حالة الردود التلقائية",
+        value=status,
+        inline=False
+    )
+    
+    # اختبار إضافة رد فعل
+    try:
+        await ctx.message.add_reaction("✅")
+        embed.add_field(
+            name="اختبار الإضافة",
+            value="✅ البوت يستطيع إضافة ردود الفعل!",
+            inline=False
+        )
+    except discord.Forbidden:
+        embed.add_field(
+            name="اختبار الإضافة",
+            value="❌ البوت لا يستطيع إضافة ردود الفعل!\nيرجى منح البوت صلاحية `Add Reactions`",
+            inline=False
+        )
+    except Exception as e:
+        embed.add_field(
+            name="اختبار الإضافة",
+            value=f"❌ خطأ: {str(e)}",
             inline=False
         )
     
