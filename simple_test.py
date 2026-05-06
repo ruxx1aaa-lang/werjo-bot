@@ -17,13 +17,10 @@ intents = discord.Intents.all()  # جميع الصلاحيات للاختبار
 
 bot = commands.Bot(command_prefix='!', intents=intents)
 
-# حالة المقولات التلقائية (متوقفة افتراضياً)
-AUTO_QUOTES_ENABLED = False
-
 # حالة الردود التلقائية (متوقفة افتراضياً)
 AUTO_REACTIONS_ENABLED = False
 
-# حالة الرسائل الصباحية والمسائية (متوقفة افتراضياً)
+# حالة الرسائل اليومية (متوقفة افتراضياً)
 AUTO_DAILY_MESSAGES_ENABLED = False
 
 # قاموس المشاعر والإيموجي المناسب
@@ -113,16 +110,15 @@ RANDOM_QUOTES = [
 async def on_ready():
     print(f'✅ {bot.user} متصل!')
     print(f'🌐 متصل بـ {len(bot.guilds)} سيرفر')
-    print(f'⏸️ المقولات التلقائية متوقفة - استخدم !startquotes لتشغيلها')
-    print(f'⏸️ الردود التلقائية متوقفة - استخدم !startreactions لتشغيلها')
     print(f'⏸️ الرسائل اليومية متوقفة - استخدم !startdaily لتشغيلها')
+    print(f'⏸️ الردود التلقائية متوقفة - استخدم !startreactions لتشغيلها')
     
-    # بدء المهام (لكنها لن ترسل إلا إذا كانت مفعلة)
-    if not random_quotes_task.is_running():
-        random_quotes_task.start()
-    
+    # بدء المهام اليومية (لكنها لن ترسل إلا إذا كانت مفعلة)
     if not daily_morning_task.is_running():
         daily_morning_task.start()
+    
+    if not daily_noon_task.is_running():
+        daily_noon_task.start()
     
     if not daily_evening_task.is_running():
         daily_evening_task.start()
@@ -148,55 +144,6 @@ def analyze_emotion(text):
     
     # إرجاع المشاعر الأعلى نقاطاً
     return max(emotion_scores, key=emotion_scores.get)
-
-@tasks.loop(hours=1)
-async def random_quotes_task():
-    """إرسال مقولات عشوائية كل ساعة"""
-    global AUTO_QUOTES_ENABLED
-    
-    # التحقق من أن المقولات التلقائية مفعلة
-    if not AUTO_QUOTES_ENABLED:
-        print("⏸️ المقولات التلقائية متوقفة")
-        return
-    
-    print("📝 إرسال مقولة عشوائية...")
-    
-    # البحث عن القناة المحددة أولاً
-    target_channel = None
-    
-    try:
-        if os.path.exists('channel_settings.txt'):
-            with open('channel_settings.txt', 'r', encoding='utf-8') as f:
-                content = f.read().strip()
-                print(f"📄 قراءة إعدادات القناة: {content}")
-                
-                if ':' in content:
-                    guild_id, channel_id = content.split(':')
-                    target_channel = bot.get_channel(int(channel_id))
-                    print(f"🔍 البحث عن القناة {channel_id} في السيرفر {guild_id}")
-    except Exception as e:
-        print(f"خطأ في قراءة إعدادات القناة: {e}")
-    
-    # إذا وجدت القناة المحددة، أرسل إليها فقط
-    if target_channel:
-        try:
-            quote = random.choice(RANDOM_QUOTES)
-            embed = discord.Embed(
-                description=f"💭 **مقولة اليوم:**\n{quote}",
-                color=0x00BFFF
-            )
-            embed.set_footer(text="Werjo Bot")
-            
-            await target_channel.send(embed=embed)
-            print(f"✅ تم إرسال المقولة إلى {target_channel.name}")
-        except discord.Forbidden:
-            print(f"❌ لا يمكن الإرسال في القناة المحددة - لا توجد صلاحيات")
-        except discord.NotFound:
-            print(f"❌ القناة المحددة لم تعد موجودة")
-        except Exception as e:
-            print(f"❌ خطأ في إرسال المقولة للقناة المحددة: {e}")
-    else:
-        print("⚠️ لا توجد قناة محددة - استخدم !setchannel لتحديد قناة")
 
 @tasks.loop(hours=24)
 async def daily_morning_task():
@@ -231,6 +178,31 @@ async def daily_morning_task():
     ]
     
     await send_daily_message(random.choice(morning_messages), "🌅 رسالة صباحية")
+
+@tasks.loop(hours=24)
+async def daily_noon_task():
+    """إرسال مقولة يومية في الساعة 2 ظهراً"""
+    global AUTO_DAILY_MESSAGES_ENABLED
+    
+    # التحقق من أن الرسائل اليومية مفعلة
+    if not AUTO_DAILY_MESSAGES_ENABLED:
+        return
+    
+    # التحقق من الوقت (2 ظهراً)
+    from datetime import datetime
+    import pytz
+    
+    # استخدام توقيت القاهرة
+    cairo_tz = pytz.timezone('Africa/Cairo')
+    now = datetime.now(cairo_tz)
+    
+    if now.hour != 14:
+        return
+    
+    print("💭 إرسال مقولة اليوم...")
+    
+    quote = random.choice(RANDOM_QUOTES)
+    await send_daily_message(f"💭 **مقولة اليوم:**\n{quote}", "💭 مقولة اليوم")
 
 @tasks.loop(hours=24)
 async def daily_evening_task():
@@ -414,9 +386,6 @@ async def werjo_command(ctx):
         value="**!setchannel** - تحديد قناة الرسائل 📍\n"
               "**!removechannel** - إلغاء قناة الرسائل ❌\n"
               "**!channelinfo** - معلومات القناة الحالية 📋\n"
-              "**!startquotes** - تشغيل المقولات التلقائية ▶️\n"
-              "**!stopquotes** - إيقاف المقولات التلقائية ⏸️\n"
-              "**!quotesstatus** - حالة المقولات التلقائية 📊\n"
               "**!startdaily** - تشغيل الرسائل اليومية 🌅\n"
               "**!stopdaily** - إيقاف الرسائل اليومية ⏸️\n"
               "**!dailystatus** - حالة الرسائل اليومية 📊\n"
@@ -432,8 +401,8 @@ async def werjo_command(ctx):
     # معلومات إضافية
     embed.add_field(
         name="ℹ️ معلومات إضافية",
-        value="• المقولات والردود التلقائية متوقفة افتراضياً\n"
-              "• استخدم `!setchannel` لتحديد قناة ثم `!startquotes` لتشغيل المقولات\n"
+        value="• الرسائل اليومية: 3 رسائل فقط (صباح، ظهر، مساء)\n"
+              "• استخدم `!setchannel` لتحديد قناة ثم `!startdaily` لتشغيل الرسائل\n"
               "• استخدم `!startreactions` لتشغيل الردود التلقائية الذكية\n"
               "• البوت يحتاج صلاحيات إدارة القنوات للأوامر الإدارية",
         inline=False
@@ -506,7 +475,12 @@ async def encourage_command(ctx):
 async def quote_command(ctx):
     print(f'💭 تم استدعاء أمر quote!')
     quote = random.choice(RANDOM_QUOTES)
-    await ctx.send(f"💭 **مقولة ملهمة:**\n{quote}")
+    embed = discord.Embed(
+        description=f"💭 **مقولة ملهمة:**\n{quote}",
+        color=0x00BFFF
+    )
+    embed.set_footer(text="Werjo Bot")
+    await ctx.send(embed=embed)
 
 @bot.command(name='startdaily')
 async def startdaily_command(ctx):
@@ -533,13 +507,19 @@ async def startdaily_command(ctx):
     
     embed = discord.Embed(
         title="✅ تم تشغيل الرسائل اليومية!",
-        description="سيقوم البوت الآن بإرسال رسائل صباحية ومسائية تلقائياً كل يوم:",
+        description="سيقوم البوت الآن بإرسال **3 رسائل يومياً** تلقائياً:",
         color=0x00FF00
     )
     
     embed.add_field(
         name="🌅 رسالة صباحية",
         value="**الوقت:** 8:00 صباحاً (توقيت القاهرة)\n**المحتوى:** رسالة تحفيزية لبداية اليوم",
+        inline=False
+    )
+    
+    embed.add_field(
+        name="💭 مقولة اليوم",
+        value="**الوقت:** 2:00 ظهراً (توقيت القاهرة)\n**المحتوى:** مقولة ملهمة واحدة",
         inline=False
     )
     
@@ -551,7 +531,7 @@ async def startdaily_command(ctx):
     
     embed.add_field(
         name="💡 ملاحظة",
-        value="الرسائل ستصل تلقائياً كل يوم في الأوقات المحددة",
+        value="الرسائل ستصل تلقائياً كل يوم في الأوقات المحددة (3 رسائل فقط)",
         inline=False
     )
     
@@ -603,12 +583,17 @@ async def dailystatus_command(ctx):
     if AUTO_DAILY_MESSAGES_ENABLED:
         embed.add_field(
             name="🌅 الرسالة الصباحية",
-            value="8:00 صباحاً (توقيت القاهرة)",
+            value="8:00 صباحاً",
+            inline=True
+        )
+        embed.add_field(
+            name="💭 مقولة اليوم",
+            value="2:00 ظهراً",
             inline=True
         )
         embed.add_field(
             name="🌙 الرسالة المسائية",
-            value="8:00 مساءً (توقيت القاهرة)",
+            value="8:00 مساءً",
             inline=True
         )
         
@@ -889,105 +874,6 @@ async def checkreactions_command(ctx):
     embed.set_footer(text="Werjo Bot")
     await ctx.send(embed=embed)
 
-@bot.command(name='startquotes')
-async def startquotes_command(ctx):
-    """تشغيل المقولات التلقائية"""
-    global AUTO_QUOTES_ENABLED
-    
-    print(f'▶️ تم استدعاء أمر startquotes من {ctx.author}!')
-    
-    # فحص الصلاحيات
-    if not ctx.author.guild_permissions.manage_channels:
-        await ctx.send("❌ **خطأ في الصلاحيات**\nتحتاج إلى صلاحية إدارة القنوات لاستخدام هذا الأمر!")
-        return
-    
-    if AUTO_QUOTES_ENABLED:
-        await ctx.send("⚠️ **المقولات التلقائية مفعلة بالفعل!**")
-        return
-    
-    # التحقق من وجود قناة محددة
-    if not os.path.exists('channel_settings.txt'):
-        await ctx.send("❌ **يجب تحديد قناة أولاً!**\nاستخدم `!setchannel` لتحديد القناة التي ستصل إليها المقولات.")
-        return
-    
-    AUTO_QUOTES_ENABLED = True
-    await ctx.send("✅ **تم تشغيل المقولات التلقائية!**\n🕐 ستصل مقولة عشوائية كل ساعة إلى القناة المحددة.")
-    print("✅ تم تفعيل المقولات التلقائية")
-
-@bot.command(name='stopquotes')
-async def stopquotes_command(ctx):
-    """إيقاف المقولات التلقائية"""
-    global AUTO_QUOTES_ENABLED
-    
-    print(f'⏸️ تم استدعاء أمر stopquotes من {ctx.author}!')
-    
-    # فحص الصلاحيات
-    if not ctx.author.guild_permissions.manage_channels:
-        await ctx.send("❌ **خطأ في الصلاحيات**\nتحتاج إلى صلاحية إدارة القنوات لاستخدام هذا الأمر!")
-        return
-    
-    if not AUTO_QUOTES_ENABLED:
-        await ctx.send("⚠️ **المقولات التلقائية متوقفة بالفعل!**")
-        return
-    
-    AUTO_QUOTES_ENABLED = False
-    await ctx.send("⏸️ **تم إيقاف المقولات التلقائية!**\nلن تصل المقولات تلقائياً بعد الآن.")
-    print("⏸️ تم إيقاف المقولات التلقائية")
-
-@bot.command(name='quotesstatus')
-async def quotesstatus_command(ctx):
-    """عرض حالة المقولات التلقائية"""
-    global AUTO_QUOTES_ENABLED
-    
-    print(f'📊 تم استدعاء أمر quotesstatus من {ctx.author}!')
-    
-    status = "🟢 مفعلة" if AUTO_QUOTES_ENABLED else "🔴 متوقفة"
-    
-    embed = discord.Embed(
-        title="📊 حالة المقولات التلقائية",
-        color=0x00FF00 if AUTO_QUOTES_ENABLED else 0xFF0000
-    )
-    
-    embed.add_field(
-        name="الحالة",
-        value=status,
-        inline=False
-    )
-    
-    if AUTO_QUOTES_ENABLED:
-        embed.add_field(
-            name="التردد",
-            value="🕐 كل ساعة",
-            inline=False
-        )
-        
-        # عرض القناة المحددة
-        try:
-            if os.path.exists('channel_settings.txt'):
-                with open('channel_settings.txt', 'r', encoding='utf-8') as f:
-                    content = f.read().strip()
-                    if ':' in content:
-                        guild_id, channel_id = content.split(':')
-                        if int(guild_id) == ctx.guild.id:
-                            channel = bot.get_channel(int(channel_id))
-                            if channel:
-                                embed.add_field(
-                                    name="القناة",
-                                    value=channel.mention,
-                                    inline=False
-                                )
-        except:
-            pass
-    else:
-        embed.add_field(
-            name="ملاحظة",
-            value="استخدم `!startquotes` لتشغيل المقولات التلقائية",
-            inline=False
-        )
-    
-    embed.set_footer(text="Werjo Bot")
-    await ctx.send(embed=embed)
-
 @bot.command(name='setchannel')
 async def setchannel_command(ctx, channel: discord.TextChannel = None):
     """تحديد قناة الرسائل التلقائية"""
@@ -1191,13 +1077,12 @@ async def debug_command(ctx):
     )
     
     # معلومات المهام
-    quotes_status = "🟢 نشط ومفعل" if (random_quotes_task.is_running() and AUTO_QUOTES_ENABLED) else ("🟡 نشط لكن متوقف" if random_quotes_task.is_running() else "🔴 متوقف")
     reactions_status = "🟢 مفعل" if AUTO_REACTIONS_ENABLED else "🔴 متوقف"
     daily_status = "🟢 مفعل" if AUTO_DAILY_MESSAGES_ENABLED else "🔴 متوقف"
     
     embed.add_field(
         name="⏰ المهام التلقائية",
-        value=f"المقولات العشوائية: {quotes_status}\nالردود التلقائية: {reactions_status}\nالرسائل اليومية: {daily_status}",
+        value=f"الردود التلقائية: {reactions_status}\nالرسائل اليومية: {daily_status}",
         inline=False
     )
     
