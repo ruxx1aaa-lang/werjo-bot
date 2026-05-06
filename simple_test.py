@@ -205,37 +205,53 @@ async def on_message(message):
             else:
                 # تحليل جميع المشاعر في النص (multi emotions)
                 text_lower = message.content.lower()
-                detected_emotions = []
+                detected_emotions = {}  # استخدام dict لتتبع المشاعر والكلمات المكتشفة
                 
                 # البحث عن جميع المشاعر الموجودة في النص
                 for emotion, keywords in EMOTION_KEYWORDS.items():
                     for keyword in keywords:
                         if keyword in text_lower:
                             if emotion not in detected_emotions:
-                                detected_emotions.append(emotion)
-                            break
+                                detected_emotions[emotion] = []
+                            detected_emotions[emotion].append(keyword)
                 
                 # إذا تم اكتشاف مشاعر، أضف ردود فعل متعددة
                 if detected_emotions:
-                    print(f'🎭 المشاعر المكتشفة: {", ".join(detected_emotions)}')
+                    emotions_list = list(detected_emotions.keys())
+                    print(f'🎭 المشاعر المكتشفة ({len(emotions_list)}): {", ".join(emotions_list)}')
                     
-                    # إضافة ردود فعل لكل مشاعر مكتشفة (حد أقصى 3 ردود)
+                    # إضافة ردود فعل لكل مشاعر مكتشفة
                     added_reactions = []
-                    for emotion in detected_emotions[:3]:  # حد أقصى 3 ردود فعل
+                    max_reactions = min(len(emotions_list), 5)  # حد أقصى 5 ردود فعل
+                    
+                    for emotion in emotions_list[:max_reactions]:
                         if emotion in EMOTION_REACTIONS:
-                            emoji = random.choice(EMOTION_REACTIONS[emotion])
-                            # تجنب تكرار نفس الإيموجي
-                            if emoji not in added_reactions:
+                            # اختيار إيموجي عشوائي من المشاعر
+                            available_emojis = [e for e in EMOTION_REACTIONS[emotion] if e not in added_reactions]
+                            
+                            if available_emojis:
+                                emoji = random.choice(available_emojis)
                                 try:
                                     await message.add_reaction(emoji)
                                     added_reactions.append(emoji)
-                                    print(f'✅ تم إضافة رد الفعل: {emoji}')
-                                    await asyncio.sleep(0.5)  # تأخير بسيط بين كل إيموجي
-                                except Exception as e:
+                                    print(f'✅ تم إضافة {emoji} للمشاعر: {emotion}')
+                                    await asyncio.sleep(0.3)  # تأخير بسيط بين كل إيموجي
+                                except discord.HTTPException as e:
                                     print(f'⚠️ خطأ في إضافة {emoji}: {e}')
+                                    # إذا فشل الإيموجي، جرب واحد تاني
+                                    if len(available_emojis) > 1:
+                                        emoji = random.choice([e for e in available_emojis if e != emoji])
+                                        try:
+                                            await message.add_reaction(emoji)
+                                            added_reactions.append(emoji)
+                                            print(f'✅ تم إضافة {emoji} بديل للمشاعر: {emotion}')
+                                        except:
+                                            pass
                     
                     if added_reactions:
-                        print(f'✅ تم إضافة {len(added_reactions)} ردود فعل: {" ".join(added_reactions)}')
+                        print(f'✅ إجمالي الردود المضافة: {len(added_reactions)} - {" ".join(added_reactions)}')
+                    else:
+                        print(f'⚠️ لم يتم إضافة أي ردود فعل')
                 else:
                     print(f'⏭️ لم يتم اكتشاف مشاعر محددة - تم تجاهل الرسالة')
                     
@@ -421,14 +437,15 @@ async def startreactions_command(ctx):
     embed.add_field(
         name="💡 ملاحظات مهمة",
         value="• البوت يضيف ردود **فقط** على الرسائل التي تحتوي على الكلمات المفتاحية\n"
-              "• يمكن إضافة **حتى 3 ردود فعل** على نفس الرسالة\n"
+              "• يمكن إضافة **حتى 5 ردود فعل** على نفس الرسالة\n"
+              "• كل مشاعر مكتشفة تحصل على إيموجي خاص بها\n"
               "• الرسائل العادية بدون كلمات مفتاحية **لن تحصل على ردود**",
         inline=False
     )
     
     embed.add_field(
         name="🧪 اختبر الآن",
-        value="جرب كتابة: `أنا سعيد ومبسوط` أو `حزين شوية`",
+        value="جرب: `أنا سعيد ومبسوط ومبروك عليك` → سيضيف 3 ردود مختلفة!",
         inline=False
     )
     
