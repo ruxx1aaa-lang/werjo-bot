@@ -20,6 +20,73 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 # حالة المقولات التلقائية (متوقفة افتراضياً)
 AUTO_QUOTES_ENABLED = False
 
+# حالة الردود التلقائية (متوقفة افتراضياً)
+AUTO_REACTIONS_ENABLED = False
+
+# قاموس المشاعر والإيموجي المناسب
+EMOTION_REACTIONS = {
+    'happy': ['😊', '😄', '🎉', '❤️', '👍'],
+    'sad': ['😢', '😔', '💔', '😞'],
+    'love': ['❤️', '💕', '💖', '😍', '🥰'],
+    'angry': ['😠', '😡', '💢'],
+    'funny': ['😂', '🤣', '😆'],
+    'thinking': ['🤔', '💭'],
+    'celebrate': ['🎉', '🎊', '🥳', '🎈'],
+    'support': ['💪', '👏', '🙌', '✨'],
+    'thanks': ['🙏', '❤️', '😊'],
+    'greeting': ['👋', '😊', '🌟'],
+    'question': ['❓', '🤔'],
+    'neutral': ['👍', '❤️']
+}
+
+# كلمات مفتاحية لكل مشاعر (عربي وإنجليزي)
+EMOTION_KEYWORDS = {
+    'happy': [
+        'سعيد', 'فرحان', 'مبسوط', 'رائع', 'جميل', 'ممتاز', 'حلو', 'جميل', 'هايل',
+        'happy', 'joy', 'great', 'awesome', 'wonderful', 'nice', 'good', 'excellent'
+    ],
+    'sad': [
+        'حزين', 'زعلان', 'تعبان', 'مش مبسوط', 'مكتئب', 'حزن', 'زعل',
+        'sad', 'unhappy', 'depressed', 'down', 'upset', 'crying', 'cry'
+    ],
+    'love': [
+        'حب', 'بحب', 'احب', 'حبيب', 'قلبي', 'عشق', 'غرام', 'حبيبي', 'حبيبتي',
+        'love', 'adore', 'heart', 'darling', 'sweetheart', '❤️', '💕'
+    ],
+    'angry': [
+        'غضبان', 'زعلان', 'متضايق', 'مش عاجبني', 'غضب', 'عصبي',
+        'angry', 'mad', 'furious', 'annoyed', 'frustrated'
+    ],
+    'funny': [
+        'هههه', 'ههههه', 'هههههه', 'ضحك', 'مضحك', 'كوميدي', 'نكتة', 'lol', 'lmao',
+        'haha', 'hahaha', 'funny', 'hilarious', 'joke', '😂', '🤣'
+    ],
+    'thinking': [
+        'تفكير', 'فكرة', 'رأي', 'اعتقد', 'ممكن', 'يمكن',
+        'think', 'thought', 'maybe', 'perhaps', 'wondering', 'hmm'
+    ],
+    'celebrate': [
+        'مبروك', 'تهانينا', 'احتفال', 'عيد', 'نجاح', 'فوز',
+        'congratulations', 'congrats', 'celebration', 'party', 'birthday', 'success'
+    ],
+    'support': [
+        'تشجيع', 'قوة', 'تقدر', 'ممتاز', 'استمر', 'كمل', 'يلا',
+        'support', 'encourage', 'strong', 'power', 'keep going', 'you can'
+    ],
+    'thanks': [
+        'شكرا', 'شكراً', 'متشكر', 'ممنون', 'تسلم', 'الله يخليك',
+        'thanks', 'thank you', 'thx', 'appreciate', 'grateful'
+    ],
+    'greeting': [
+        'السلام عليكم', 'صباح الخير', 'مساء الخير', 'مرحبا', 'اهلا', 'هاي', 'هلو',
+        'hello', 'hi', 'hey', 'greetings', 'good morning', 'good evening'
+    ],
+    'question': [
+        'كيف', 'ليه', 'ازاي', 'متى', 'اين', 'ما', 'هل', '؟',
+        'how', 'why', 'what', 'when', 'where', 'which', '?'
+    ]
+}
+
 # مقولات عشوائية
 RANDOM_QUOTES = [
     "✨ النجاح ليس نهاية المطاف، والفشل ليس قاتلاً، إنما الشجاعة للمتابعة هي التي تهم.",
@@ -44,10 +111,33 @@ async def on_ready():
     print(f'✅ {bot.user} متصل!')
     print(f'🌐 متصل بـ {len(bot.guilds)} سيرفر')
     print(f'⏸️ المقولات التلقائية متوقفة - استخدم !startquotes لتشغيلها')
+    print(f'⏸️ الردود التلقائية متوقفة - استخدم !startreactions لتشغيلها')
     
     # بدء المهمة (لكنها لن ترسل إلا إذا كانت مفعلة)
     if not random_quotes_task.is_running():
         random_quotes_task.start()
+
+def analyze_emotion(text):
+    """تحليل المشاعر في النص"""
+    text_lower = text.lower()
+    
+    # حساب نقاط لكل مشاعر
+    emotion_scores = {}
+    
+    for emotion, keywords in EMOTION_KEYWORDS.items():
+        score = 0
+        for keyword in keywords:
+            if keyword in text_lower:
+                score += 1
+        if score > 0:
+            emotion_scores[emotion] = score
+    
+    # إذا لم يتم العثور على أي مشاعر، استخدم neutral
+    if not emotion_scores:
+        return 'neutral'
+    
+    # إرجاع المشاعر الأعلى نقاطاً
+    return max(emotion_scores, key=emotion_scores.get)
 
 @tasks.loop(hours=1)
 async def random_quotes_task():
@@ -106,6 +196,25 @@ async def on_message(message):
     if message.author == bot.user:
         return
     
+    # إضافة ردود فعل تلقائية إذا كانت مفعلة
+    if AUTO_REACTIONS_ENABLED and message.content:
+        try:
+            # تحليل المشاعر
+            emotion = analyze_emotion(message.content)
+            print(f'🎭 المشاعر المكتشفة: {emotion}')
+            
+            # اختيار إيموجي عشوائي من المشاعر المكتشفة
+            if emotion in EMOTION_REACTIONS:
+                emoji = random.choice(EMOTION_REACTIONS[emotion])
+                await message.add_reaction(emoji)
+                print(f'✅ تم إضافة رد الفعل: {emoji}')
+        except discord.Forbidden:
+            print(f'❌ لا يمكن إضافة رد فعل - لا توجد صلاحيات')
+        except discord.HTTPException as e:
+            print(f'❌ خطأ في إضافة رد الفعل: {e}')
+        except Exception as e:
+            print(f'❌ خطأ غير متوقع: {e}')
+    
     # معالجة الأوامر
     await bot.process_commands(message)
 
@@ -151,6 +260,10 @@ async def werjo_command(ctx):
               "**!startquotes** - تشغيل المقولات التلقائية ▶️\n"
               "**!stopquotes** - إيقاف المقولات التلقائية ⏸️\n"
               "**!quotesstatus** - حالة المقولات التلقائية 📊\n"
+              "**!startreactions** - تشغيل الردود التلقائية 🎭\n"
+              "**!stopreactions** - إيقاف الردود التلقائية ⏸️\n"
+              "**!reactionsstatus** - حالة الردود التلقائية 📊\n"
+              "**!testreaction** - اختبار تحليل المشاعر 🧪\n"
               "**!debug** - معلومات التشخيص 🔧",
         inline=False
     )
@@ -158,8 +271,9 @@ async def werjo_command(ctx):
     # معلومات إضافية
     embed.add_field(
         name="ℹ️ معلومات إضافية",
-        value="• المقولات التلقائية متوقفة افتراضياً\n"
+        value="• المقولات والردود التلقائية متوقفة افتراضياً\n"
               "• استخدم `!setchannel` لتحديد قناة ثم `!startquotes` لتشغيل المقولات\n"
+              "• استخدم `!startreactions` لتشغيل الردود التلقائية الذكية\n"
               "• البوت يحتاج صلاحيات إدارة القنوات للأوامر الإدارية",
         inline=False
     )
@@ -232,6 +346,133 @@ async def quote_command(ctx):
     print(f'💭 تم استدعاء أمر quote!')
     quote = random.choice(RANDOM_QUOTES)
     await ctx.send(f"💭 **مقولة ملهمة:**\n{quote}")
+
+@bot.command(name='startreactions')
+async def startreactions_command(ctx):
+    """تشغيل الردود التلقائية"""
+    global AUTO_REACTIONS_ENABLED
+    
+    print(f'▶️ تم استدعاء أمر startreactions من {ctx.author}!')
+    
+    # فحص الصلاحيات
+    if not ctx.author.guild_permissions.manage_channels:
+        await ctx.send("❌ **خطأ في الصلاحيات**\nتحتاج إلى صلاحية إدارة القنوات لاستخدام هذا الأمر!")
+        return
+    
+    if AUTO_REACTIONS_ENABLED:
+        await ctx.send("⚠️ **الردود التلقائية مفعلة بالفعل!**")
+        return
+    
+    AUTO_REACTIONS_ENABLED = True
+    
+    embed = discord.Embed(
+        title="✅ تم تشغيل الردود التلقائية!",
+        description="سيقوم البوت الآن بإضافة ردود فعل تلقائية على الرسائل حسب المشاعر المكتشفة:",
+        color=0x00FF00
+    )
+    
+    embed.add_field(name="😊 سعادة", value="رسائل إيجابية وسعيدة", inline=True)
+    embed.add_field(name="😢 حزن", value="رسائل حزينة", inline=True)
+    embed.add_field(name="❤️ حب", value="رسائل رومانسية", inline=True)
+    embed.add_field(name="😂 ضحك", value="رسائل مضحكة", inline=True)
+    embed.add_field(name="🎉 احتفال", value="رسائل احتفالية", inline=True)
+    embed.add_field(name="💪 تشجيع", value="رسائل تحفيزية", inline=True)
+    
+    embed.set_footer(text="استخدم !stopreactions لإيقاف الردود التلقائية")
+    
+    await ctx.send(embed=embed)
+    print("✅ تم تفعيل الردود التلقائية")
+
+@bot.command(name='stopreactions')
+async def stopreactions_command(ctx):
+    """إيقاف الردود التلقائية"""
+    global AUTO_REACTIONS_ENABLED
+    
+    print(f'⏸️ تم استدعاء أمر stopreactions من {ctx.author}!')
+    
+    # فحص الصلاحيات
+    if not ctx.author.guild_permissions.manage_channels:
+        await ctx.send("❌ **خطأ في الصلاحيات**\nتحتاج إلى صلاحية إدارة القنوات لاستخدام هذا الأمر!")
+        return
+    
+    if not AUTO_REACTIONS_ENABLED:
+        await ctx.send("⚠️ **الردود التلقائية متوقفة بالفعل!**")
+        return
+    
+    AUTO_REACTIONS_ENABLED = False
+    await ctx.send("⏸️ **تم إيقاف الردود التلقائية!**\nلن يضيف البوت ردود فعل تلقائية بعد الآن.")
+    print("⏸️ تم إيقاف الردود التلقائية")
+
+@bot.command(name='reactionsstatus')
+async def reactionsstatus_command(ctx):
+    """عرض حالة الردود التلقائية"""
+    global AUTO_REACTIONS_ENABLED
+    
+    print(f'📊 تم استدعاء أمر reactionsstatus من {ctx.author}!')
+    
+    status = "🟢 مفعلة" if AUTO_REACTIONS_ENABLED else "🔴 متوقفة"
+    
+    embed = discord.Embed(
+        title="📊 حالة الردود التلقائية",
+        color=0x00FF00 if AUTO_REACTIONS_ENABLED else 0xFF0000
+    )
+    
+    embed.add_field(
+        name="الحالة",
+        value=status,
+        inline=False
+    )
+    
+    if AUTO_REACTIONS_ENABLED:
+        embed.add_field(
+            name="المشاعر المدعومة",
+            value="😊 سعادة • 😢 حزن • ❤️ حب • 😂 ضحك\n🎉 احتفال • 💪 تشجيع • 🙏 شكر • 👋 تحية",
+            inline=False
+        )
+    else:
+        embed.add_field(
+            name="ملاحظة",
+            value="استخدم `!startreactions` لتشغيل الردود التلقائية",
+            inline=False
+        )
+    
+    embed.set_footer(text="Werjo Bot")
+    await ctx.send(embed=embed)
+
+@bot.command(name='testreaction')
+async def testreaction_command(ctx, *, text: str = None):
+    """اختبار تحليل المشاعر"""
+    print(f'🧪 تم استدعاء أمر testreaction من {ctx.author}!')
+    
+    if not text:
+        await ctx.send("❌ **يرجى كتابة نص للاختبار!**\nمثال: `!testreaction أنا سعيد جداً اليوم`")
+        return
+    
+    # تحليل المشاعر
+    emotion = analyze_emotion(text)
+    
+    embed = discord.Embed(
+        title="🧪 نتيجة تحليل المشاعر",
+        description=f"**النص:** {text}",
+        color=0x00BFFF
+    )
+    
+    embed.add_field(
+        name="المشاعر المكتشفة",
+        value=f"**{emotion}**",
+        inline=False
+    )
+    
+    if emotion in EMOTION_REACTIONS:
+        reactions = " ".join(EMOTION_REACTIONS[emotion])
+        embed.add_field(
+            name="الردود المحتملة",
+            value=reactions,
+            inline=False
+        )
+    
+    embed.set_footer(text="Werjo Bot")
+    await ctx.send(embed=embed)
 
 @bot.command(name='startquotes')
 async def startquotes_command(ctx):
@@ -536,9 +777,11 @@ async def debug_command(ctx):
     
     # معلومات المهام
     quotes_status = "🟢 نشط ومفعل" if (random_quotes_task.is_running() and AUTO_QUOTES_ENABLED) else ("🟡 نشط لكن متوقف" if random_quotes_task.is_running() else "🔴 متوقف")
+    reactions_status = "🟢 مفعل" if AUTO_REACTIONS_ENABLED else "🔴 متوقف"
+    
     embed.add_field(
         name="⏰ المهام التلقائية",
-        value=f"المقولات العشوائية: {quotes_status}",
+        value=f"المقولات العشوائية: {quotes_status}\nالردود التلقائية: {reactions_status}",
         inline=False
     )
     
