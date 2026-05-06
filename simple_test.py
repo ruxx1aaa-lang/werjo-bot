@@ -17,6 +17,9 @@ intents = discord.Intents.all()  # جميع الصلاحيات للاختبار
 
 bot = commands.Bot(command_prefix='!', intents=intents)
 
+# حالة المقولات التلقائية (متوقفة افتراضياً)
+AUTO_QUOTES_ENABLED = False
+
 # مقولات عشوائية
 RANDOM_QUOTES = [
     "✨ النجاح ليس نهاية المطاف، والفشل ليس قاتلاً، إنما الشجاعة للمتابعة هي التي تهم.",
@@ -40,13 +43,22 @@ RANDOM_QUOTES = [
 async def on_ready():
     print(f'✅ {bot.user} متصل!')
     print(f'🌐 متصل بـ {len(bot.guilds)} سيرفر')
+    print(f'⏸️ المقولات التلقائية متوقفة - استخدم !startquotes لتشغيلها')
     
-    # بدء المقولات العشوائية
-    random_quotes_task.start()
+    # بدء المهمة (لكنها لن ترسل إلا إذا كانت مفعلة)
+    if not random_quotes_task.is_running():
+        random_quotes_task.start()
 
 @tasks.loop(hours=1)
 async def random_quotes_task():
     """إرسال مقولات عشوائية كل ساعة"""
+    global AUTO_QUOTES_ENABLED
+    
+    # التحقق من أن المقولات التلقائية مفعلة
+    if not AUTO_QUOTES_ENABLED:
+        print("⏸️ المقولات التلقائية متوقفة")
+        return
+    
     print("📝 إرسال مقولة عشوائية...")
     
     # البحث عن القناة المحددة أولاً
@@ -65,7 +77,7 @@ async def random_quotes_task():
     except Exception as e:
         print(f"خطأ في قراءة إعدادات القناة: {e}")
     
-    # إذا وجدت القناة المحددة، أرسل إليها
+    # إذا وجدت القناة المحددة، أرسل إليها فقط
     if target_channel:
         try:
             quote = random.choice(RANDOM_QUOTES)
@@ -77,44 +89,14 @@ async def random_quotes_task():
             
             await target_channel.send(embed=embed)
             print(f"✅ تم إرسال المقولة إلى {target_channel.name}")
-            return
         except discord.Forbidden:
             print(f"❌ لا يمكن الإرسال في القناة المحددة - لا توجد صلاحيات")
         except discord.NotFound:
             print(f"❌ القناة المحددة لم تعد موجودة")
         except Exception as e:
             print(f"❌ خطأ في إرسال المقولة للقناة المحددة: {e}")
-    
-    # إذا لم توجد قناة محددة أو فشل الإرسال، ابحث عن قناة عامة
-    print("🔍 البحث عن قناة عامة...")
-    for guild in bot.guilds:
-        channel = None
-        
-        # البحث عن قناة عامة
-        for ch in guild.text_channels:
-            if any(word in ch.name.lower() for word in ['general', 'عام', 'chat', 'main']):
-                channel = ch
-                break
-        
-        # إذا لم توجد قناة عامة، استخدم أول قناة متاحة
-        if not channel and guild.text_channels:
-            channel = guild.text_channels[0]
-        
-        if channel:
-            try:
-                quote = random.choice(RANDOM_QUOTES)
-                embed = discord.Embed(
-                    description=f"💭 **مقولة اليوم:**\n{quote}",
-                    color=0x00BFFF
-                )
-                embed.set_footer(text="Werjo Bot")
-                
-                await channel.send(embed=embed)
-                print(f"✅ تم إرسال المقولة إلى {channel.name} في {guild.name}")
-            except discord.Forbidden:
-                print(f"❌ لا يمكن الإرسال في {guild.name} - لا توجد صلاحيات")
-            except Exception as e:
-                print(f"❌ خطأ في إرسال المقولة: {e}")
+    else:
+        print("⚠️ لا توجد قناة محددة - استخدم !setchannel لتحديد قناة")
 
 @bot.event
 async def on_message(message):
@@ -166,6 +148,9 @@ async def werjo_command(ctx):
         value="**!setchannel** - تحديد قناة الرسائل 📍\n"
               "**!removechannel** - إلغاء قناة الرسائل ❌\n"
               "**!channelinfo** - معلومات القناة الحالية 📋\n"
+              "**!startquotes** - تشغيل المقولات التلقائية ▶️\n"
+              "**!stopquotes** - إيقاف المقولات التلقائية ⏸️\n"
+              "**!quotesstatus** - حالة المقولات التلقائية 📊\n"
               "**!debug** - معلومات التشخيص 🔧",
         inline=False
     )
@@ -173,8 +158,8 @@ async def werjo_command(ctx):
     # معلومات إضافية
     embed.add_field(
         name="ℹ️ معلومات إضافية",
-        value="• المقولات العشوائية ترسل كل ساعة تلقائياً\n"
-              "• استخدم `!setchannel` لتحديد قناة معينة للرسائل\n"
+        value="• المقولات التلقائية متوقفة افتراضياً\n"
+              "• استخدم `!setchannel` لتحديد قناة ثم `!startquotes` لتشغيل المقولات\n"
               "• البوت يحتاج صلاحيات إدارة القنوات للأوامر الإدارية",
         inline=False
     )
@@ -247,6 +232,105 @@ async def quote_command(ctx):
     print(f'💭 تم استدعاء أمر quote!')
     quote = random.choice(RANDOM_QUOTES)
     await ctx.send(f"💭 **مقولة ملهمة:**\n{quote}")
+
+@bot.command(name='startquotes')
+async def startquotes_command(ctx):
+    """تشغيل المقولات التلقائية"""
+    global AUTO_QUOTES_ENABLED
+    
+    print(f'▶️ تم استدعاء أمر startquotes من {ctx.author}!')
+    
+    # فحص الصلاحيات
+    if not ctx.author.guild_permissions.manage_channels:
+        await ctx.send("❌ **خطأ في الصلاحيات**\nتحتاج إلى صلاحية إدارة القنوات لاستخدام هذا الأمر!")
+        return
+    
+    if AUTO_QUOTES_ENABLED:
+        await ctx.send("⚠️ **المقولات التلقائية مفعلة بالفعل!**")
+        return
+    
+    # التحقق من وجود قناة محددة
+    if not os.path.exists('channel_settings.txt'):
+        await ctx.send("❌ **يجب تحديد قناة أولاً!**\nاستخدم `!setchannel` لتحديد القناة التي ستصل إليها المقولات.")
+        return
+    
+    AUTO_QUOTES_ENABLED = True
+    await ctx.send("✅ **تم تشغيل المقولات التلقائية!**\n🕐 ستصل مقولة عشوائية كل ساعة إلى القناة المحددة.")
+    print("✅ تم تفعيل المقولات التلقائية")
+
+@bot.command(name='stopquotes')
+async def stopquotes_command(ctx):
+    """إيقاف المقولات التلقائية"""
+    global AUTO_QUOTES_ENABLED
+    
+    print(f'⏸️ تم استدعاء أمر stopquotes من {ctx.author}!')
+    
+    # فحص الصلاحيات
+    if not ctx.author.guild_permissions.manage_channels:
+        await ctx.send("❌ **خطأ في الصلاحيات**\nتحتاج إلى صلاحية إدارة القنوات لاستخدام هذا الأمر!")
+        return
+    
+    if not AUTO_QUOTES_ENABLED:
+        await ctx.send("⚠️ **المقولات التلقائية متوقفة بالفعل!**")
+        return
+    
+    AUTO_QUOTES_ENABLED = False
+    await ctx.send("⏸️ **تم إيقاف المقولات التلقائية!**\nلن تصل المقولات تلقائياً بعد الآن.")
+    print("⏸️ تم إيقاف المقولات التلقائية")
+
+@bot.command(name='quotesstatus')
+async def quotesstatus_command(ctx):
+    """عرض حالة المقولات التلقائية"""
+    global AUTO_QUOTES_ENABLED
+    
+    print(f'📊 تم استدعاء أمر quotesstatus من {ctx.author}!')
+    
+    status = "🟢 مفعلة" if AUTO_QUOTES_ENABLED else "🔴 متوقفة"
+    
+    embed = discord.Embed(
+        title="📊 حالة المقولات التلقائية",
+        color=0x00FF00 if AUTO_QUOTES_ENABLED else 0xFF0000
+    )
+    
+    embed.add_field(
+        name="الحالة",
+        value=status,
+        inline=False
+    )
+    
+    if AUTO_QUOTES_ENABLED:
+        embed.add_field(
+            name="التردد",
+            value="🕐 كل ساعة",
+            inline=False
+        )
+        
+        # عرض القناة المحددة
+        try:
+            if os.path.exists('channel_settings.txt'):
+                with open('channel_settings.txt', 'r', encoding='utf-8') as f:
+                    content = f.read().strip()
+                    if ':' in content:
+                        guild_id, channel_id = content.split(':')
+                        if int(guild_id) == ctx.guild.id:
+                            channel = bot.get_channel(int(channel_id))
+                            if channel:
+                                embed.add_field(
+                                    name="القناة",
+                                    value=channel.mention,
+                                    inline=False
+                                )
+        except:
+            pass
+    else:
+        embed.add_field(
+            name="ملاحظة",
+            value="استخدم `!startquotes` لتشغيل المقولات التلقائية",
+            inline=False
+        )
+    
+    embed.set_footer(text="Werjo Bot")
+    await ctx.send(embed=embed)
 
 @bot.command(name='setchannel')
 async def setchannel_command(ctx, channel: discord.TextChannel = None):
@@ -451,9 +535,10 @@ async def debug_command(ctx):
     )
     
     # معلومات المهام
+    quotes_status = "🟢 نشط ومفعل" if (random_quotes_task.is_running() and AUTO_QUOTES_ENABLED) else ("🟡 نشط لكن متوقف" if random_quotes_task.is_running() else "🔴 متوقف")
     embed.add_field(
         name="⏰ المهام التلقائية",
-        value=f"المقولات العشوائية: {'🟢 نشط' if random_quotes_task.is_running() else '🔴 متوقف'}",
+        value=f"المقولات العشوائية: {quotes_status}",
         inline=False
     )
     
