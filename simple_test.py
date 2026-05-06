@@ -23,6 +23,9 @@ AUTO_QUOTES_ENABLED = False
 # حالة الردود التلقائية (متوقفة افتراضياً)
 AUTO_REACTIONS_ENABLED = False
 
+# حالة الرسائل الصباحية والمسائية (متوقفة افتراضياً)
+AUTO_DAILY_MESSAGES_ENABLED = False
+
 # قاموس المشاعر والإيموجي المناسب
 EMOTION_REACTIONS = {
     'happy': ['😊', '😄', '🎉', '❤️', '👍'],
@@ -112,10 +115,17 @@ async def on_ready():
     print(f'🌐 متصل بـ {len(bot.guilds)} سيرفر')
     print(f'⏸️ المقولات التلقائية متوقفة - استخدم !startquotes لتشغيلها')
     print(f'⏸️ الردود التلقائية متوقفة - استخدم !startreactions لتشغيلها')
+    print(f'⏸️ الرسائل اليومية متوقفة - استخدم !startdaily لتشغيلها')
     
-    # بدء المهمة (لكنها لن ترسل إلا إذا كانت مفعلة)
+    # بدء المهام (لكنها لن ترسل إلا إذا كانت مفعلة)
     if not random_quotes_task.is_running():
         random_quotes_task.start()
+    
+    if not daily_morning_task.is_running():
+        daily_morning_task.start()
+    
+    if not daily_evening_task.is_running():
+        daily_evening_task.start()
 
 def analyze_emotion(text):
     """تحليل المشاعر في النص"""
@@ -187,6 +197,104 @@ async def random_quotes_task():
             print(f"❌ خطأ في إرسال المقولة للقناة المحددة: {e}")
     else:
         print("⚠️ لا توجد قناة محددة - استخدم !setchannel لتحديد قناة")
+
+@tasks.loop(hours=24)
+async def daily_morning_task():
+    """إرسال رسالة صباحية يومياً في الساعة 8 صباحاً"""
+    global AUTO_DAILY_MESSAGES_ENABLED
+    
+    # التحقق من أن الرسائل اليومية مفعلة
+    if not AUTO_DAILY_MESSAGES_ENABLED:
+        return
+    
+    # التحقق من الوقت (8 صباحاً)
+    from datetime import datetime
+    import pytz
+    
+    # استخدام توقيت القاهرة
+    cairo_tz = pytz.timezone('Africa/Cairo')
+    now = datetime.now(cairo_tz)
+    
+    if now.hour != 8:
+        return
+    
+    print("🌅 إرسال رسالة صباحية...")
+    
+    morning_messages = [
+        "🌅 صباح الخير يا أحلى أعضاء! ☕",
+        "🌞 صباح النور والسرور على الجميع! 🌸",
+        "☀️ يوم جديد مليء بالأمل والفرح! 🎉",
+        "🌻 صباح الورد والياسمين! 🌹",
+        "🦋 صباح مليء بالطاقة الإيجابية! ✨",
+        "🌈 صباح الأحلام الجميلة! 💫",
+        "🎵 صباح الموسيقى والفرح! 🎶"
+    ]
+    
+    await send_daily_message(random.choice(morning_messages), "🌅 رسالة صباحية")
+
+@tasks.loop(hours=24)
+async def daily_evening_task():
+    """إرسال رسالة مسائية يومياً في الساعة 8 مساءً"""
+    global AUTO_DAILY_MESSAGES_ENABLED
+    
+    # التحقق من أن الرسائل اليومية مفعلة
+    if not AUTO_DAILY_MESSAGES_ENABLED:
+        return
+    
+    # التحقق من الوقت (8 مساءً)
+    from datetime import datetime
+    import pytz
+    
+    # استخدام توقيت القاهرة
+    cairo_tz = pytz.timezone('Africa/Cairo')
+    now = datetime.now(cairo_tz)
+    
+    if now.hour != 20:
+        return
+    
+    print("🌙 إرسال رسالة مسائية...")
+    
+    evening_messages = [
+        "🌙 مساء الخير يا أجمل عائلة! 🌟",
+        "✨ مساء النور على قلوبكم الطيبة! 💖",
+        "🌆 مساء الهدوء والراحة! 🛋️",
+        "🌃 ليلة سعيدة مليئة بالأحلام الجميلة! 😴",
+        "🌙 مساء الدفء والحنان! 🤗",
+        "⭐ مساء البركة والسكينة! 🙏",
+        "🌌 ليلة هادئة وأحلام وردية! 💤"
+    ]
+    
+    await send_daily_message(random.choice(evening_messages), "🌙 رسالة مسائية")
+
+async def send_daily_message(message, title):
+    """إرسال رسالة يومية للقناة المحددة"""
+    target_channel = None
+    
+    try:
+        if os.path.exists('channel_settings.txt'):
+            with open('channel_settings.txt', 'r', encoding='utf-8') as f:
+                content = f.read().strip()
+                
+                if ':' in content:
+                    guild_id, channel_id = content.split(':')
+                    target_channel = bot.get_channel(int(channel_id))
+    except Exception as e:
+        print(f"خطأ في قراءة إعدادات القناة: {e}")
+    
+    if target_channel:
+        try:
+            embed = discord.Embed(
+                description=message,
+                color=0xFFD700
+            )
+            embed.set_footer(text="Werjo Bot")
+            
+            await target_channel.send(embed=embed)
+            print(f"✅ تم إرسال {title} إلى {target_channel.name}")
+        except Exception as e:
+            print(f"❌ خطأ في إرسال {title}: {e}")
+    else:
+        print(f"⚠️ لا توجد قناة محددة لإرسال {title}")
 
 @bot.event
 async def on_message(message):
@@ -309,6 +417,9 @@ async def werjo_command(ctx):
               "**!startquotes** - تشغيل المقولات التلقائية ▶️\n"
               "**!stopquotes** - إيقاف المقولات التلقائية ⏸️\n"
               "**!quotesstatus** - حالة المقولات التلقائية 📊\n"
+              "**!startdaily** - تشغيل الرسائل اليومية 🌅\n"
+              "**!stopdaily** - إيقاف الرسائل اليومية ⏸️\n"
+              "**!dailystatus** - حالة الرسائل اليومية 📊\n"
               "**!startreactions** - تشغيل الردود التلقائية 🎭\n"
               "**!stopreactions** - إيقاف الردود التلقائية ⏸️\n"
               "**!reactionsstatus** - حالة الردود التلقائية 📊\n"
@@ -396,6 +507,137 @@ async def quote_command(ctx):
     print(f'💭 تم استدعاء أمر quote!')
     quote = random.choice(RANDOM_QUOTES)
     await ctx.send(f"💭 **مقولة ملهمة:**\n{quote}")
+
+@bot.command(name='startdaily')
+async def startdaily_command(ctx):
+    """تشغيل الرسائل اليومية التلقائية"""
+    global AUTO_DAILY_MESSAGES_ENABLED
+    
+    print(f'▶️ تم استدعاء أمر startdaily من {ctx.author}!')
+    
+    # فحص الصلاحيات
+    if not ctx.author.guild_permissions.manage_channels:
+        await ctx.send("❌ **خطأ في الصلاحيات**\nتحتاج إلى صلاحية إدارة القنوات لاستخدام هذا الأمر!")
+        return
+    
+    if AUTO_DAILY_MESSAGES_ENABLED:
+        await ctx.send("⚠️ **الرسائل اليومية مفعلة بالفعل!**")
+        return
+    
+    # التحقق من وجود قناة محددة
+    if not os.path.exists('channel_settings.txt'):
+        await ctx.send("❌ **يجب تحديد قناة أولاً!**\nاستخدم `!setchannel` لتحديد القناة التي ستصل إليها الرسائل.")
+        return
+    
+    AUTO_DAILY_MESSAGES_ENABLED = True
+    
+    embed = discord.Embed(
+        title="✅ تم تشغيل الرسائل اليومية!",
+        description="سيقوم البوت الآن بإرسال رسائل صباحية ومسائية تلقائياً كل يوم:",
+        color=0x00FF00
+    )
+    
+    embed.add_field(
+        name="🌅 رسالة صباحية",
+        value="**الوقت:** 8:00 صباحاً (توقيت القاهرة)\n**المحتوى:** رسالة تحفيزية لبداية اليوم",
+        inline=False
+    )
+    
+    embed.add_field(
+        name="🌙 رسالة مسائية",
+        value="**الوقت:** 8:00 مساءً (توقيت القاهرة)\n**المحتوى:** رسالة هادئة لنهاية اليوم",
+        inline=False
+    )
+    
+    embed.add_field(
+        name="💡 ملاحظة",
+        value="الرسائل ستصل تلقائياً كل يوم في الأوقات المحددة",
+        inline=False
+    )
+    
+    embed.set_footer(text="استخدم !stopdaily لإيقاف الرسائل اليومية")
+    
+    await ctx.send(embed=embed)
+    print("✅ تم تفعيل الرسائل اليومية")
+
+@bot.command(name='stopdaily')
+async def stopdaily_command(ctx):
+    """إيقاف الرسائل اليومية التلقائية"""
+    global AUTO_DAILY_MESSAGES_ENABLED
+    
+    print(f'⏸️ تم استدعاء أمر stopdaily من {ctx.author}!')
+    
+    # فحص الصلاحيات
+    if not ctx.author.guild_permissions.manage_channels:
+        await ctx.send("❌ **خطأ في الصلاحيات**\nتحتاج إلى صلاحية إدارة القنوات لاستخدام هذا الأمر!")
+        return
+    
+    if not AUTO_DAILY_MESSAGES_ENABLED:
+        await ctx.send("⚠️ **الرسائل اليومية متوقفة بالفعل!**")
+        return
+    
+    AUTO_DAILY_MESSAGES_ENABLED = False
+    await ctx.send("⏸️ **تم إيقاف الرسائل اليومية!**\nلن تصل الرسائل الصباحية والمسائية تلقائياً بعد الآن.")
+    print("⏸️ تم إيقاف الرسائل اليومية")
+
+@bot.command(name='dailystatus')
+async def dailystatus_command(ctx):
+    """عرض حالة الرسائل اليومية"""
+    global AUTO_DAILY_MESSAGES_ENABLED
+    
+    print(f'📊 تم استدعاء أمر dailystatus من {ctx.author}!')
+    
+    status = "🟢 مفعلة" if AUTO_DAILY_MESSAGES_ENABLED else "🔴 متوقفة"
+    
+    embed = discord.Embed(
+        title="📊 حالة الرسائل اليومية",
+        color=0x00FF00 if AUTO_DAILY_MESSAGES_ENABLED else 0xFF0000
+    )
+    
+    embed.add_field(
+        name="الحالة",
+        value=status,
+        inline=False
+    )
+    
+    if AUTO_DAILY_MESSAGES_ENABLED:
+        embed.add_field(
+            name="🌅 الرسالة الصباحية",
+            value="8:00 صباحاً (توقيت القاهرة)",
+            inline=True
+        )
+        embed.add_field(
+            name="🌙 الرسالة المسائية",
+            value="8:00 مساءً (توقيت القاهرة)",
+            inline=True
+        )
+        
+        # عرض القناة المحددة
+        try:
+            if os.path.exists('channel_settings.txt'):
+                with open('channel_settings.txt', 'r', encoding='utf-8') as f:
+                    content = f.read().strip()
+                    if ':' in content:
+                        guild_id, channel_id = content.split(':')
+                        if int(guild_id) == ctx.guild.id:
+                            channel = bot.get_channel(int(channel_id))
+                            if channel:
+                                embed.add_field(
+                                    name="📍 القناة",
+                                    value=channel.mention,
+                                    inline=False
+                                )
+        except:
+            pass
+    else:
+        embed.add_field(
+            name="ملاحظة",
+            value="استخدم `!startdaily` لتشغيل الرسائل اليومية",
+            inline=False
+        )
+    
+    embed.set_footer(text="Werjo Bot")
+    await ctx.send(embed=embed)
 
 @bot.command(name='startreactions')
 async def startreactions_command(ctx):
@@ -951,10 +1193,11 @@ async def debug_command(ctx):
     # معلومات المهام
     quotes_status = "🟢 نشط ومفعل" if (random_quotes_task.is_running() and AUTO_QUOTES_ENABLED) else ("🟡 نشط لكن متوقف" if random_quotes_task.is_running() else "🔴 متوقف")
     reactions_status = "🟢 مفعل" if AUTO_REACTIONS_ENABLED else "🔴 متوقف"
+    daily_status = "🟢 مفعل" if AUTO_DAILY_MESSAGES_ENABLED else "🔴 متوقف"
     
     embed.add_field(
         name="⏰ المهام التلقائية",
-        value=f"المقولات العشوائية: {quotes_status}\nالردود التلقائية: {reactions_status}",
+        value=f"المقولات العشوائية: {quotes_status}\nالردود التلقائية: {reactions_status}\nالرسائل اليومية: {daily_status}",
         inline=False
     )
     
